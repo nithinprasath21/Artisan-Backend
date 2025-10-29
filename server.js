@@ -10,6 +10,7 @@ const swaggerDocument = YAML.load(path.join(__dirname, 'swagger.yaml'));
 const authRoutes = require('./routes/auth');
 const artisanRoutes = require('./routes/artisan');
 const productRoutes = require('./routes/product');
+const orderRoutes = require('./routes/order');
 const pool = require('./config/db');
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/artisan', artisanRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 
 app.get('/', (req, res) => {
     res.send('Artisan E-commerce Backend API is running!');

@@ -121,6 +121,65 @@ components:
         type:
           type: string
           enum: [increase, decrease, set]
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        buyer_name: { type: string }
+        total_amount: { type: number, example: 105.00 }
+        status: { type: string, enum: [new, confirmed, processing, ready_for_pickup, shipped, delivered, cancelled, cancellation_requested, returned] }
+        created_at: { type: string, format: date-time }
+        shipping_address_summary: { type: string, example: "Bengaluru, Karnataka" }
+    OrderDetails:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        order_number: { type: string, example: "ART-ORD-0001" }
+        buyer_details: { type: object, properties: { name: { type: string }, contact: { type: string } } }
+        shipping_address: { type: object, example: { street: "123 Main St", city: "Bengaluru" } }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id: { type: string, format: uuid }
+              name: { type: string }
+              quantity: { type: integer }
+              price: { type: number }
+              variant_details: { type: object, nullable: true }
+        total_amount: { type: number }
+        net_payout: { type: number }
+        status: { type: string }
+        tracking_details: { type: string, nullable: true }
+    ShippingRequest:
+      type: object
+      properties:
+        tracking_number: { type: string, example: "TRK123456789" }
+        shipping_carrier: { type: string, example: "BlueDart" }
+      required: [tracking_number, shipping_carrier]
+    CancellationRequest:
+      type: object
+      properties:
+        reason: { type: string, example: "Raw material stock is unexpectedly low." }
+      required: [reason]
+    Return:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_name: { type: string }
+        customer_name: { type: string }
+        reason: { type: string }
+        return_status: { type: string, enum: [new, accepted, rejected, completed, refunded] }
+        created_at: { type: string, format: date-time }
+    ReturnProcessRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [accept, reject]
+        reason: { type: string, description: "Required if action is 'reject'." }
+        refund_amount: { type: number, example: 95.00, description: "Required if action is 'accept'." }
+      required: [action]
 paths:
   /api/auth/register:
     post:
@@ -526,3 +585,181 @@ paths:
       responses:
         "200":
           description: Pricing guidance
+  /api/orders/orders:
+    get:
+      summary: Get All Orders for Artisan
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [new, pending_pickup, shipped, delivered, cancelled, returned] }
+          description: Filter orders by fulfillment status.
+        - in: query
+          name: start_date
+          schema: { type: string, format: date }
+        - in: query
+          name: page
+          schema: { type: integer, example: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, example: 10 }
+      responses:
+        "200":
+          description: List of orders retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+  /api/orders/orders/{order_id}:
+    get:
+      summary: Get Order Details
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string, format: uuid, example: d4c8e7a6-1111-2222-3333-b03fbd800b53 }
+      responses:
+        "200":
+          description: Detailed order information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetails'
+  /api/orders/orders/{order_id}/confirm:
+    put:
+      summary: Accept/Confirm Order
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string, format: uuid, example: d4c8e7a6-1111-2222-3333-b03fbd800b53 }
+      responses:
+        "200":
+          description: Order status updated to "Confirmed".
+  /api/orders/orders/{order_id}/ready-for-pickup:
+    put:
+      summary: Mark Order as Ready for Pickup
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string, format: uuid, example: d4c8e7a6-1111-2222-3333-b03fbd800b53 }
+      responses:
+        "200":
+          description: Order status updated to "Ready For Pickup".
+  /api/orders/orders/{order_id}/ship:
+    put:
+      summary: Update Order Shipping Status (Self-Shipping)
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string, format: uuid, example: d4c8e7a6-1111-2222-3333-b03fbd800b53 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShippingRequest'
+      responses:
+        "200":
+          description: Order status updated to "Shipped" with tracking info.
+  /api/orders/orders/{order_id}/shipping-label:
+    get:
+      summary: Get Shipping Label (Placeholder)
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string, format: uuid, example: d4c8e7a6-1111-2222-3333-b03fbd800b53 }
+      responses:
+        "501":
+          description: Not Implemented (Requires shipping API integration).
+  /api/orders/orders/{order_id}/cancel-request:
+    post:
+      summary: Request Cancellation (by Artisan)
+      tags: [Order Management & Fulfillment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string, format: uuid, example: d4c8e7a6-1111-2222-3333-b03fbd800b53 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
+      responses:
+        "200":
+          description: Order status updated to "Cancellation Requested".
+  /api/orders/returns:
+    get:
+      summary: Get All Return Requests
+      tags: [Returns Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [new, accepted, rejected, completed] }
+          description: Filter returns by status.
+      responses:
+        "200":
+          description: List of return requests retrieved.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Return'
+  /api/orders/returns/{return_id}/process:
+    put:
+      summary: Process Return Request (Accept/Reject)
+      tags: [Returns Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: return_id
+          required: true
+          schema: { type: string, format: uuid, example: f9e0b1a2-1111-2222-3333-b03fbd800b53 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReturnProcessRequest'
+            examples:
+              AcceptReturn:
+                value:
+                  action: "accept"
+                  refund_amount: 95.00
+              RejectReturn:
+                value:
+                  action: "reject"
+                  reason: "Item was not in original condition."
+      responses:
+        "200":
+          description: Return status updated.
